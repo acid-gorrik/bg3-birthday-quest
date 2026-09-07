@@ -23,13 +23,12 @@ function loadState() {
     chapter2RewardClaimed: false,
     restChoice: null,
     restDone: false,
-    legendStage: 0,
+    legendStage: 0,    // 0 - нет писем, 2 - письмо после отдыха, 3 - письмо после сборов
     legendUnread: false,
     gearDone: false,
     gearBudgetExtra: 0,
     mapPieceCount: 0,
     seenAct2Splash: false,
-    seenAct3Splash: false,
     seenAct4Splash: false,
     seenAct5Splash: false,
     newspaperIssues: [],
@@ -58,6 +57,15 @@ function goTo(screen) {
   state.screen = screen;
   saveState();
   render();
+  // Скрыть/показать рамку
+  const frame = document.querySelector('.page-frame');
+  if (frame) {
+    if (screen === 'titleSplash' || screen === 'finalVictory') {
+      frame.style.display = 'none';
+    } else {
+      frame.style.display = 'block';
+    }
+  }
 }
 
 function addGold(amount, label) {
@@ -149,7 +157,6 @@ function render() {
     finalBattleDone: renderFinalBattleDone,
     finalVictory: renderFinalVictory,
     actSplash2: renderActSplash2,
-    actSplash3: renderActSplash3,
     actSplash4: renderActSplash4,
     actSplash5: renderActSplash5,
     sparring: renderSparring,
@@ -164,6 +171,15 @@ function render() {
     (routes[state.screen] || renderIntro)();
   }
   updateHealthFooter();
+  // Скрыть/показать рамку
+  const frame = document.querySelector('.page-frame');
+  if (frame) {
+    if (state.screen === 'titleSplash' || state.screen === 'finalVictory') {
+      frame.style.display = 'none';
+    } else {
+      frame.style.display = 'block';
+    }
+  }
 }
 
 // ---------- Нижняя полоска здоровья (пролог) ----------
@@ -399,7 +415,7 @@ function statBox(label, valueHtml, extraClass, onClick) {
 function questDoneRow(title) {
   const row = document.createElement("div");
   row.className = "quest-done-row";
-  row.innerHTML = `<span>${title}</span><span class="tick">✓</span>`;
+  row.innerHTML = `<span>${title}</span><span class="tick">✦</span>`;
   return row;
 }
 
@@ -430,6 +446,7 @@ function renderHub() {
 
   const children = [title, statRow, healthBar];
 
+  // Квест на башни
   if (allRecruited) {
     if (state.chapter2Done) {
       children.push(questDoneRow(c.firstMission.title));
@@ -440,7 +457,8 @@ function renderHub() {
     }
   }
 
-  if (state.chapter2RewardClaimed && state.legendStage >= 1 && !state.legendUnread) {
+  // Привал появляется сразу после награды, без письма
+  if (state.chapter2RewardClaimed) {
     if (state.restDone) {
       children.push(questDoneRow(CONFIG.chapter4.hubCardTitle));
     } else {
@@ -451,6 +469,7 @@ function renderHub() {
     }
   }
 
+  // Снаряжение появляется только после прочтения письма 2 (stage 2)
   if (state.restDone && state.legendStage >= 2 && !state.legendUnread) {
     if (state.gearDone) {
       children.push(questDoneRow(CONFIG.chapter5.hubCardTitle));
@@ -462,6 +481,7 @@ function renderHub() {
     }
   }
 
+  // Финальная битва после письма 3
   if (state.gearDone && state.legendStage >= 3 && !state.legendUnread) {
     if (state.finalBattleDone) {
       children.push(questDoneRow(CONFIG.finalBattle.hubCardTitle));
@@ -473,6 +493,7 @@ function renderHub() {
     }
   }
 
+  // Направления для союзников
   if (!allRecruited) {
     const sectionLabel = document.createElement("p");
     sectionLabel.className = "field-label";
@@ -484,7 +505,7 @@ function renderHub() {
       const done = !!state.recruited[d.companionId];
       const b = document.createElement("button");
       b.className = "direction-btn" + (done ? " done" : "");
-      b.innerHTML = `<span>${d.label}</span>${done ? '<span class="tick">✓ пройдено</span>' : ""}`;
+      b.innerHTML = `<span>${d.label}</span>${done ? '<span class="tick">✦ пройдено</span>' : ""}`;
       if (done) {
         b.disabled = true;
       } else {
@@ -695,7 +716,7 @@ function renderLogScreen(eyebrow, title, log, unit) {
   app.appendChild(screenWrap([list, btn("Назад", () => goTo("hub"), "ghost")]));
 }
 
-// ---------- Письмо от Легенды ----------
+// ---------- Письмо от Легенды (только этапы 2 и 3) ----------
 function renderLegendLetter() {
   const stage = state.legendStage;
   const msg = CONFIG.legendMessages[stage];
@@ -713,8 +734,7 @@ function renderLegendLetter() {
       state.legendUnread = false;
       saveState();
       let splashScreen = null;
-      if (stage === 1) splashScreen = "actSplash3";
-      else if (stage === 2) splashScreen = "actSplash4";
+      if (stage === 2) splashScreen = "actSplash4";
       else if (stage === 3) splashScreen = "actSplash5";
       if (splashScreen) {
         goTo(splashScreen);
@@ -738,19 +758,13 @@ function renderMapPiece(id) {
   emoji.style.margin = "10px 0";
   emoji.textContent = piece.emoji;
 
-  // Для towers кнопка ведёт на claimReward, для остальных — на proceedAfterMapPiece
-  let nextScreen;
-  if (id === "towers") {
-    nextScreen = "chapter2ClaimReward";
-  } else {
-    nextScreen = "proceedAfterMapPiece"; // будем вызывать функцию напрямую
-  }
-
   const actionBtn = btn(CONFIG.mapPieceButtonText, () => {
     state.mapPieceCount = (state.mapPieceCount || 0) + 1;
     saveState();
     if (id === "towers") {
       goTo("chapter2ClaimReward");
+    } else if (id === "rest") {
+      proceedAfterMapPiece(id);
     } else {
       proceedAfterMapPiece(id);
     }
@@ -764,7 +778,12 @@ function renderMapPiece(id) {
 }
 
 function proceedAfterMapPiece(id) {
-  // Для компаньонов
+  if (id === "rest") {
+    // после отдыха сразу хаб, без письма и сплэша
+    goTo("hub");
+    return;
+  }
+  // для компаньонов
   const allRecruited = Object.keys(state.recruited).length >= CONFIG.hub.directions.length;
   if (allRecruited && !state.seenAct2Splash) {
     state.seenAct2Splash = true;
@@ -773,19 +792,6 @@ function proceedAfterMapPiece(id) {
   } else {
     goTo("hub");
   }
-  // Для rest обрабатывается в renderMapPiece? Но rest вызывается через mapPiece:rest, который идёт в renderMapPiece и там кнопка ведёт на proceedAfterMapPiece, но для rest у нас отдельная логика.
-  // Поэтому в proceedAfterMapPiece добавим проверку на id === "rest"
-  if (id === "rest") {
-    if (!state.seenAct3Splash) {
-      state.seenAct3Splash = true;
-      saveState();
-      goTo("actSplash3");
-    } else {
-      goTo("hub");
-    }
-    return;
-  }
-  // Для остальных (компаньоны) уже обработано выше.
 }
 
 // ---------- Газета ----------
@@ -850,7 +856,7 @@ function renderNewspaper() {
   app.appendChild(screenWrap([list, btn("Назад", () => goTo("hub"), "ghost")]));
 }
 
-// ---------- Глава 2 (новый порядок) ----------
+// ---------- Глава 2 ----------
 function renderChapter2Intro() {
   const c = CONFIG.chapter2;
   app.appendChild(banner(c.eyebrow, c.title));
@@ -914,7 +920,7 @@ function renderChapter2Praise() {
   app.appendChild(banner(c.eyebrow, c.title));
   app.appendChild(screenWrap([
     p(c.text),
-    btn(c.buttonText, () => goTo("mapPiece:towers"), "primary")  // теперь карта до награды
+    btn(c.buttonText, () => goTo("mapPiece:towers"), "primary")
   ]));
 }
 
@@ -956,8 +962,7 @@ function renderChapter2Reward() {
   if (!state.chapter2RewardClaimed) {
     addGold(c.amount, c.goldLogLabel);
     state.chapter2RewardClaimed = true;
-    state.legendStage = 1;
-    state.legendUnread = true;
+    // больше не ставим legendStage = 1, привал появляется сразу
     saveState();
   }
 
@@ -971,7 +976,7 @@ function renderChapter2Reward() {
   app.appendChild(screenWrap([
     amountEl,
     p(c.text),
-    btn(c.walletButtonText, () => goTo("goldHistory"), "primary"), // теперь ведёт в историю золота
+    btn(c.walletButtonText, () => goTo("goldHistory"), "primary"),
   ]));
 }
 
@@ -1047,7 +1052,8 @@ function renderRestChoice() {
   c.options.forEach((opt) => {
     const b = document.createElement("button");
     b.className = "direction-btn";
-    b.innerHTML = `<span>${opt.name}</span><br><span style="font-size:0.8em; opacity:0.7;">${opt.flavor}</span>`;
+    // Название и описание
+    b.innerHTML = `<span style="font-size:1em;">${opt.name}</span><br><span style="font-size:0.75em; opacity:0.8;">${opt.flavor}</span>`;
     b.addEventListener("click", () => {
       state.restChoice = opt.id;
       saveState();
@@ -1118,6 +1124,7 @@ function renderRestSubmitted() {
     statusMsg(c.submittedText, "ok"),
     btn(c.finishButtonText, () => {
       state.restDone = true;
+      // После отдыха ставим письмо 2 (этап 2)
       state.legendStage = 2;
       state.legendUnread = true;
       saveState();
@@ -1249,6 +1256,7 @@ function renderGearPhotoSubmitted() {
   app.appendChild(screenWrap([
     statusMsg(c.gearPhotoSubmitted || "Фото сохранено!", "ok"),
     btn(c.gearPhotoContinue || "Продолжить", () => {
+      // После сборов ставим письмо 3 (этап 3)
       state.legendStage = 3;
       state.legendUnread = true;
       saveState();
@@ -1358,9 +1366,6 @@ function renderActSplashGeneric(actConfig, nextScreen) {
 
 function renderActSplash2() {
   renderActSplashGeneric(CONFIG.acts.act2, "hub");
-}
-function renderActSplash3() {
-  renderActSplashGeneric(CONFIG.acts.act3, "hub");
 }
 function renderActSplash4() {
   renderActSplashGeneric(CONFIG.acts.act4, "hub");
