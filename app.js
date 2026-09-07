@@ -20,13 +20,13 @@ function loadState() {
     activeCompanionId: null,
     attackUsed: {},
     chapter2Done: false,
-    chapter2RewardClaimed: false,
+    chapter2RewardClaimed: false,   // стало true только после успешного ввода кода
     restChoice: null,
     restDone: false,
-    legendStage: 0,
+    legendStage: 0,          // 0 - нет писем, 1 - письмо после башен, 2 - после отдыха, 3 - после снаряжения
     legendUnread: false,
     gearDone: false,
-    gearBudgetExtra: 0,
+    gearBudgetExtra: 0,      // больше не используется, но оставим
     mapPieceCount: 0,
     seenAct2Splash: false,
     seenAct3Splash: false,
@@ -40,6 +40,8 @@ function loadState() {
     _sparringCompanionId: null,
     _sparringStep: null,
     finalBattleDone: false,
+    // флаги для показа сплэшей после прочтения писем
+    _pendingSplash: null,   // хранит, какой сплэш показать после письма
   };
 }
 
@@ -52,7 +54,6 @@ function saveState() {
 // ---------- Блокировка выхода из диалога ----------
 function goTo(screen) {
   const current = state.screen;
-  // Если мы в диалоге, блокируем только переход на другой диалог (не даём переключиться между разными диалогами)
   if (current && current.startsWith("companionDialogue:") && screen.startsWith("companionDialogue:") && screen !== current) {
     return;
   }
@@ -129,10 +130,10 @@ function render() {
     goldHistory: renderGoldHistory,
     healthHistory: renderHealthHistory,
     chapter2Intro: renderChapter2Intro,
-    chapter2Code: renderChapter2Code,
     chapter2Photo: renderChapter2Photo,
     chapter2Submitted: renderChapter2Submitted,
     chapter2Praise: renderChapter2Praise,
+    chapter2ClaimReward: renderChapter2ClaimReward,
     chapter2Reward: renderChapter2Reward,
     restChoice: renderRestChoice,
     restRoute: renderRestRoute,
@@ -147,6 +148,7 @@ function render() {
     finalBattleIntro: renderFinalBattleIntro,
     finalPhoto: renderFinalPhoto,
     finalBattleDone: renderFinalBattleDone,
+    finalVictory: renderFinalVictory,
     actSplash2: renderActSplash2,
     actSplash3: renderActSplash3,
     actSplash4: renderActSplash4,
@@ -214,7 +216,7 @@ function btn(text, onClick, variant) {
 function p(text, className) {
   const el = document.createElement("p");
   el.className = className || "lore-text";
-  el.textContent = text;
+  el.innerHTML = text; // разрешаем HTML для ссылок
   return el;
 }
 
@@ -397,6 +399,7 @@ function renderHub() {
 
   const children = [title, statRow, healthBar];
 
+  // Квест на башни (появляется сразу после найма всех, без писем)
   if (allRecruited) {
     if (state.chapter2Done) {
       children.push(questDoneRow(c.firstMission.title));
@@ -407,7 +410,8 @@ function renderHub() {
     }
   }
 
-  if (state.chapter2RewardClaimed) {
+  // Квест на отдых появляется только после прочтения письма 1 (legendStage >= 1 и !legendUnread)
+  if (state.chapter2RewardClaimed && state.legendStage >= 1 && !state.legendUnread) {
     if (state.restDone) {
       children.push(questDoneRow(CONFIG.chapter4.hubCardTitle));
     } else {
@@ -418,7 +422,8 @@ function renderHub() {
     }
   }
 
-  if (state.restDone) {
+  // Квест на снаряжение появляется после прочтения письма 2 (legendStage >= 2 и !legendUnread)
+  if (state.restDone && state.legendStage >= 2 && !state.legendUnread) {
     if (state.gearDone) {
       children.push(questDoneRow(CONFIG.chapter5.hubCardTitle));
     } else {
@@ -429,7 +434,8 @@ function renderHub() {
     }
   }
 
-  if (state.gearDone) {
+  // Квест на финальную битву после прочтения письма 3 (legendStage >= 3 и !legendUnread)
+  if (state.gearDone && state.legendStage >= 3 && !state.legendUnread) {
     if (state.finalBattleDone) {
       children.push(questDoneRow(CONFIG.finalBattle.hubCardTitle));
     } else {
@@ -440,6 +446,7 @@ function renderHub() {
     }
   }
 
+  // Направления для поиска союзников (пока не все набраны)
   if (!allRecruited) {
     const sectionLabel = document.createElement("p");
     sectionLabel.className = "field-label";
@@ -473,7 +480,7 @@ function renderHub() {
   app.appendChild(screenWrap(children));
 }
 
-// ---------- Компаньоны ----------
+// ---------- Компаньоны (без изменений) ----------
 function renderCompanionApproach(id) {
   const comp = findCompanion(id);
   if (!comp) { goTo("hub"); return; }
@@ -662,11 +669,11 @@ function renderLogScreen(eyebrow, title, log, unit) {
   app.appendChild(screenWrap([list, btn("Назад", () => goTo("hub"), "ghost")]));
 }
 
-// ---------- Письмо от Легенды ----------
+// ---------- Письмо от Легенды (теперь с выбором сплэша) ----------
 function renderLegendLetter() {
-  const msg = state.legendStage === 1
-    ? CONFIG.legendMessages.stage1
-    : CONFIG.legendMessages.stage2;
+  const stage = state.legendStage;
+  const msg = CONFIG.legendMessages[stage];
+  if (!msg) { goTo("hub"); return; }
 
   app.appendChild(banner("Письмо", "Легенда"));
 
@@ -679,7 +686,16 @@ function renderLegendLetter() {
     btn(msg.buttonText, () => {
       state.legendUnread = false;
       saveState();
-      goTo("hub");
+      // Определяем, какой сплэш показать после письма
+      let splashScreen = null;
+      if (stage === 1) splashScreen = "actSplash3";  // отдых
+      else if (stage === 2) splashScreen = "actSplash4"; // снаряжение
+      else if (stage === 3) splashScreen = "actSplash5"; // финальная битва
+      if (splashScreen) {
+        goTo(splashScreen);
+      } else {
+        goTo("hub");
+      }
     }, "primary"),
   ]));
 }
@@ -710,6 +726,7 @@ function renderMapPiece(id) {
 
 function proceedAfterMapPiece(id) {
   if (id === "towers") {
+    // после башен мы уже не используем этот переход, оставим на всякий случай
     goTo("chapter2Praise");
     return;
   }
@@ -723,6 +740,7 @@ function proceedAfterMapPiece(id) {
     }
     return;
   }
+  // иначе — компаньон
   const allRecruited = Object.keys(state.recruited).length >= CONFIG.hub.directions.length;
   if (allRecruited && !state.seenAct2Splash) {
     state.seenAct2Splash = true;
@@ -795,43 +813,13 @@ function renderNewspaper() {
   app.appendChild(screenWrap([list, btn("Назад", () => goTo("hub"), "ghost")]));
 }
 
-// ---------- Глава 2 ----------
+// ---------- Глава 2 (новый порядок) ----------
 function renderChapter2Intro() {
   const c = CONFIG.chapter2;
   app.appendChild(banner(c.eyebrow, c.title));
   app.appendChild(screenWrap([
     p(c.intro.text),
-    btn(c.intro.buttonText, () => goTo("chapter2Code"), "primary"),
-  ]));
-}
-
-function renderChapter2Code() {
-  const c = CONFIG.chapter2;
-  const g = c.codeGate;
-  app.appendChild(banner(c.eyebrow, c.title));
-
-  const statusSlot = document.createElement("div");
-  const input = document.createElement("input");
-  input.type = "text";
-  input.placeholder = g.passwordPlaceholder;
-  input.autocomplete = "off";
-
-  const onOk = () => goTo("chapter2Photo");
-  const onFail = (msg) => { statusSlot.innerHTML = ""; statusSlot.appendChild(statusMsg(msg, "error")); };
-
-  const nfcBtn = btn(g.nfcButtonText, () => tryNfcScan(g.nfcCode, onOk, onFail), "primary");
-  const submit = btn("Проверить слово", () => {
-    if (normalize(input.value) === normalize(g.password)) onOk();
-    else onFail(g.errorText);
-  });
-
-  app.appendChild(screenWrap([
-    p(g.text),
-    nfcBtn,
-    (() => { const hr = document.createElement("p"); hr.className = "nfc-hint"; hr.textContent = "— или —"; return hr; })(),
-    input,
-    submit,
-    statusSlot,
+    btn(c.intro.buttonText, () => goTo("chapter2Photo"), "primary"),
   ]));
 }
 
@@ -880,7 +868,7 @@ function renderChapter2Submitted() {
   app.appendChild(banner(c.eyebrow, c.title));
   app.appendChild(screenWrap([
     statusMsg(c.submittedText, "ok"),
-    btn(c.continueButtonText, () => goTo("mapPiece:towers"), "primary"),
+    btn(c.continueButtonText, () => goTo("chapter2Praise"), "primary"),
   ]));
 }
 
@@ -889,7 +877,42 @@ function renderChapter2Praise() {
   app.appendChild(banner(c.eyebrow, c.title));
   app.appendChild(screenWrap([
     p(c.text),
-    btn(c.buttonText, () => goTo("chapter2Reward"), "primary"),
+    btn(c.buttonText, () => goTo("chapter2ClaimReward"), "primary"),
+  ]));
+}
+
+function renderChapter2ClaimReward() {
+  const c = CONFIG.chapter2.claimReward;
+  app.appendChild(banner(CONFIG.chapter2.eyebrow, "Награда"));
+
+  const statusSlot = document.createElement("div");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = c.passwordPlaceholder;
+  input.autocomplete = "off";
+
+  const onSuccess = () => {
+    // успех – переходим к показу суммы
+    goTo("chapter2Reward");
+  };
+  const onFail = (msg) => {
+    statusSlot.innerHTML = "";
+    statusSlot.appendChild(statusMsg(msg, "error"));
+  };
+
+  const nfcBtn = btn(c.nfcButtonText, () => tryNfcScan(c.nfcCode, onSuccess, onFail), "primary");
+  const submit = btn("Проверить слово", () => {
+    if (normalize(input.value) === normalize(c.password)) onSuccess();
+    else onFail(c.errorText);
+  });
+
+  app.appendChild(screenWrap([
+    p(c.text),
+    nfcBtn,
+    (() => { const hr = document.createElement("p"); hr.className = "nfc-hint"; hr.textContent = "— или —"; return hr; })(),
+    input,
+    submit,
+    statusSlot,
   ]));
 }
 
@@ -898,9 +921,9 @@ function renderChapter2Reward() {
 
   if (!state.chapter2RewardClaimed) {
     addGold(c.amount, c.goldLogLabel);
+    state.chapter2RewardClaimed = true;
     state.legendStage = 1;
     state.legendUnread = true;
-    state.chapter2RewardClaimed = true;
     saveState();
   }
 
@@ -914,7 +937,11 @@ function renderChapter2Reward() {
   app.appendChild(screenWrap([
     amountEl,
     p(c.text),
-    btn(c.walletButtonText, () => goTo("goldHistory"), "primary"),
+    btn(c.walletButtonText, () => {
+      // После награды переходим к карте, но сначала проверяем, не нужно ли показать сплэш?
+      // Здесь мы уже поставили письмо, поэтому на хабе появится квест на отдых
+      goTo("mapPiece:towers");
+    }, "primary"),
   ]));
 }
 
@@ -990,7 +1017,8 @@ function renderRestChoice() {
   c.options.forEach((opt) => {
     const b = document.createElement("button");
     b.className = "direction-btn";
-    b.innerHTML = `<span>${opt.name}</span><br><span style="font-size:0.8em; opacity:0.7;">${opt.address}</span>`;
+    // Показываем название и описание (flavor) мелким шрифтом, адрес убираем
+    b.innerHTML = `<span>${opt.name}</span><br><span style="font-size:0.8em; opacity:0.7;">${opt.flavor}</span>`;
     b.addEventListener("click", () => {
       state.restChoice = opt.id;
       saveState();
@@ -1061,14 +1089,12 @@ function renderRestSubmitted() {
     statusMsg(c.submittedText, "ok"),
     btn(c.finishButtonText, () => {
       state.restDone = true;
+      // После отдыха ставим письмо 2 (legendStage = 2)
+      state.legendStage = 2;
+      state.legendUnread = true;
       saveState();
-      if (!state.seenAct4Splash) {
-        state.seenAct4Splash = true;
-        saveState();
-        goTo("actSplash4");
-      } else {
-        goTo("hub");
-      }
+      // Возвращаемся на хаб, где появится значок у Легенды
+      goTo("hub");
     }, "primary"),
   ]));
 }
@@ -1128,12 +1154,21 @@ function renderGearMap() {
   const c = CONFIG.chapter5;
   app.appendChild(banner(c.eyebrow, "Карта собрана"));
 
-  const card = document.createElement("div");
-  card.className = "scroll-card";
-  card.innerHTML = `<p class="quote-line" style="border:none;padding:0;">📍 <a href="${c.mapLink}" target="_blank" style="color: var(--gold-bright); text-decoration: underline;">${c.mapAddress}</a></p>`;
+  // Показываем полную карту
+  const mapImg = document.createElement("img");
+  mapImg.src = c.puzzle.completeMapImage;
+  mapImg.alt = "Собранная карта";
+  mapImg.style.width = "100%";
+  mapImg.style.borderRadius = "4px";
+  mapImg.style.marginBottom = "10px";
+
+  const addressLink = document.createElement("p");
+  addressLink.className = "lore-text";
+  addressLink.innerHTML = `📍 <a href="${c.mapLink}" target="_blank" style="color: var(--gold-bright); text-decoration: underline;">${c.mapAddress}</a>`;
 
   app.appendChild(screenWrap([
-    card,
+    mapImg,
+    addressLink,
     btn(c.mapButtonText, () => goTo("gearBudget"), "primary"),
   ]));
 }
@@ -1142,38 +1177,9 @@ function renderGearBudget() {
   const c = CONFIG.chapter5.budget;
   app.appendChild(banner(CONFIG.chapter5.eyebrow, "Закуп перед боем"));
 
-  const totalEl = document.createElement("p");
-  totalEl.className = "hub-title";
-  totalEl.style.margin = "0";
-
-  function renderTotal() {
-    totalEl.textContent = `${c.amount + state.gearBudgetExtra} ₽`;
-  }
-  renderTotal();
-
-  const input = document.createElement("input");
-  input.type = "number";
-  input.placeholder = c.addPlaceholder;
-  input.min = "0";
-
-  const addBtn = btn(c.addLabel, () => {
-    const value = parseInt(input.value, 10);
-    if (!isNaN(value) && value > 0) {
-      state.gearBudgetExtra += value;
-      saveState();
-      renderTotal();
-      input.value = "";
-    }
-  });
-
   app.appendChild(screenWrap([
     p(c.text),
-    totalEl,
-    input,
-    addBtn,
-    btn(c.readyButtonText, () => {
-      goTo("gearPhoto");
-    }, "primary"),
+    btn("Я закупился", () => goTo("gearPhoto"), "primary"),
   ]));
 }
 
@@ -1217,16 +1223,11 @@ function renderGearPhotoSubmitted() {
   app.appendChild(screenWrap([
     statusMsg(c.gearPhotoSubmitted || "Фото сохранено!", "ok"),
     btn(c.gearPhotoContinue || "Продолжить", () => {
-      state.legendStage = 2;
+      // После снаряжения ставим письмо 3 (legendStage = 3)
+      state.legendStage = 3;
       state.legendUnread = true;
       saveState();
-      if (!state.seenAct5Splash) {
-        state.seenAct5Splash = true;
-        saveState();
-        goTo("actSplash5");
-      } else {
-        goTo("hub");
-      }
+      goTo("hub");
     }, "primary"),
   ]));
 }
@@ -1278,10 +1279,43 @@ function renderFinalPhoto() {
 function renderFinalBattleDone() {
   const fb = CONFIG.finalBattle;
   app.appendChild(banner(fb.eyebrow, "Победа!"));
+  setHealth(27, "Имениннику — полное здоровье!");
   app.appendChild(screenWrap([
     statusMsg(fb.battleDoneText || "Битва окончена! Ты спас мир!", "ok"),
-    btn(fb.finishButtonText, () => goTo("hub"), "primary"),
+    btn("Сохранить газеты на память", () => {
+      // Скачиваем все газеты
+      const allIssues = [...CONFIG.newspaper.staticIssues, ...state.newspaperIssues];
+      allIssues.forEach((issue, index) => {
+        const link = document.createElement("a");
+        link.download = `newspaper_${index+1}.jpg`;
+        link.href = issue.fullImage;
+        link.click();
+      });
+    }, "primary"),
+    btn(fb.finishButtonText, () => goTo("finalVictory"), "primary"),
   ]));
+}
+
+function renderFinalVictory() {
+  const fb = CONFIG.finalBattle;
+  const wrap = document.createElement("div");
+  wrap.className = "title-splash";
+  wrap.style.backgroundImage = `url("${fb.finalImage}")`;
+  wrap.style.backgroundSize = "cover";
+  wrap.style.backgroundPosition = "center";
+  wrap.style.backgroundColor = "var(--bg-void)";
+  wrap.style.display = "flex";
+  wrap.style.alignItems = "flex-end";
+  wrap.style.justifyContent = "center";
+  wrap.style.padding = "0 0 48px";
+  wrap.style.cursor = "default";
+
+  const hint = document.createElement("p");
+  hint.className = "title-splash-hint";
+  hint.textContent = "Спасибо за игру!";
+  wrap.appendChild(hint);
+
+  app.appendChild(wrap);
 }
 
 // ---------- Сплэши актов ----------
