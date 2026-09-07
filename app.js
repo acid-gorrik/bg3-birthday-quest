@@ -20,13 +20,13 @@ function loadState() {
     activeCompanionId: null,
     attackUsed: {},
     chapter2Done: false,
-    chapter2RewardClaimed: false,   // стало true только после успешного ввода кода
+    chapter2RewardClaimed: false,
     restChoice: null,
     restDone: false,
-    legendStage: 0,          // 0 - нет писем, 1 - письмо после башен, 2 - после отдыха, 3 - после снаряжения
+    legendStage: 0,
     legendUnread: false,
     gearDone: false,
-    gearBudgetExtra: 0,      // больше не используется, но оставим
+    gearBudgetExtra: 0,
     mapPieceCount: 0,
     seenAct2Splash: false,
     seenAct3Splash: false,
@@ -40,8 +40,6 @@ function loadState() {
     _sparringCompanionId: null,
     _sparringStep: null,
     finalBattleDone: false,
-    // флаги для показа сплэшей после прочтения писем
-    _pendingSplash: null,   // хранит, какой сплэш показать после письма
   };
 }
 
@@ -123,6 +121,7 @@ function render() {
     intro: renderIntro,
     breakfast: renderBreakfast,
     breakfastSuccess: renderBreakfastSuccess,
+    plateClue: renderPlateClue,
     train: renderTrain,
     hub: renderHub,
     roster: renderRoster,
@@ -168,7 +167,7 @@ function render() {
 }
 
 // ---------- Нижняя полоска здоровья (пролог) ----------
-const PROLOGUE_SCREENS = ["intro", "breakfast", "breakfastSuccess", "train"];
+const PROLOGUE_SCREENS = ["intro", "breakfast", "breakfastSuccess", "plateClue", "train"];
 
 function updateHealthFooter() {
   const footerEl = document.getElementById("health-footer");
@@ -216,7 +215,7 @@ function btn(text, onClick, variant) {
 function p(text, className) {
   const el = document.createElement("p");
   el.className = className || "lore-text";
-  el.innerHTML = text; // разрешаем HTML для ссылок
+  el.innerHTML = text;
   return el;
 }
 
@@ -309,8 +308,40 @@ function renderBreakfastSuccess() {
     statusMsg(c.successText, "ok"),
     btn(c.eatButtonText, () => {
       setHealth(CONFIG.stats.healthAfterBreakfast, CONFIG.stats.breakfastLabel);
-      goTo("train");
+      goTo("plateClue");
     }, "primary"),
+  ]));
+}
+
+function renderPlateClue() {
+  const c = CONFIG.plateClue;
+  app.appendChild(banner(c.eyebrow, c.title));
+
+  const statusSlot = document.createElement("div");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = c.passwordPlaceholder;
+  input.autocomplete = "off";
+
+  const onSuccess = () => goTo("train");
+  const onFail = (msg) => {
+    statusSlot.innerHTML = "";
+    statusSlot.appendChild(statusMsg(msg, "error"));
+  };
+
+  const nfcBtn = btn(c.nfcButtonText, () => tryNfcScan(c.nfcCode, onSuccess, onFail), "primary");
+  const submit = btn("Проверить слово", () => {
+    if (normalize(input.value) === normalize(c.password)) onSuccess();
+    else onFail(c.errorText);
+  });
+
+  app.appendChild(screenWrap([
+    p(c.text),
+    nfcBtn,
+    (() => { const hr = document.createElement("p"); hr.className = "nfc-hint"; hr.textContent = "— или —"; return hr; })(),
+    input,
+    submit,
+    statusSlot,
   ]));
 }
 
@@ -399,7 +430,6 @@ function renderHub() {
 
   const children = [title, statRow, healthBar];
 
-  // Квест на башни (появляется сразу после найма всех, без писем)
   if (allRecruited) {
     if (state.chapter2Done) {
       children.push(questDoneRow(c.firstMission.title));
@@ -410,7 +440,6 @@ function renderHub() {
     }
   }
 
-  // Квест на отдых появляется только после прочтения письма 1 (legendStage >= 1 и !legendUnread)
   if (state.chapter2RewardClaimed && state.legendStage >= 1 && !state.legendUnread) {
     if (state.restDone) {
       children.push(questDoneRow(CONFIG.chapter4.hubCardTitle));
@@ -422,7 +451,6 @@ function renderHub() {
     }
   }
 
-  // Квест на снаряжение появляется после прочтения письма 2 (legendStage >= 2 и !legendUnread)
   if (state.restDone && state.legendStage >= 2 && !state.legendUnread) {
     if (state.gearDone) {
       children.push(questDoneRow(CONFIG.chapter5.hubCardTitle));
@@ -434,7 +462,6 @@ function renderHub() {
     }
   }
 
-  // Квест на финальную битву после прочтения письма 3 (legendStage >= 3 и !legendUnread)
   if (state.gearDone && state.legendStage >= 3 && !state.legendUnread) {
     if (state.finalBattleDone) {
       children.push(questDoneRow(CONFIG.finalBattle.hubCardTitle));
@@ -446,7 +473,6 @@ function renderHub() {
     }
   }
 
-  // Направления для поиска союзников (пока не все набраны)
   if (!allRecruited) {
     const sectionLabel = document.createElement("p");
     sectionLabel.className = "field-label";
@@ -480,7 +506,7 @@ function renderHub() {
   app.appendChild(screenWrap(children));
 }
 
-// ---------- Компаньоны (без изменений) ----------
+// ---------- Компаньоны ----------
 function renderCompanionApproach(id) {
   const comp = findCompanion(id);
   if (!comp) { goTo("hub"); return; }
@@ -669,7 +695,7 @@ function renderLogScreen(eyebrow, title, log, unit) {
   app.appendChild(screenWrap([list, btn("Назад", () => goTo("hub"), "ghost")]));
 }
 
-// ---------- Письмо от Легенды (теперь с выбором сплэша) ----------
+// ---------- Письмо от Легенды ----------
 function renderLegendLetter() {
   const stage = state.legendStage;
   const msg = CONFIG.legendMessages[stage];
@@ -686,11 +712,10 @@ function renderLegendLetter() {
     btn(msg.buttonText, () => {
       state.legendUnread = false;
       saveState();
-      // Определяем, какой сплэш показать после письма
       let splashScreen = null;
-      if (stage === 1) splashScreen = "actSplash3";  // отдых
-      else if (stage === 2) splashScreen = "actSplash4"; // снаряжение
-      else if (stage === 3) splashScreen = "actSplash5"; // финальная битва
+      if (stage === 1) splashScreen = "actSplash3";
+      else if (stage === 2) splashScreen = "actSplash4";
+      else if (stage === 3) splashScreen = "actSplash5";
       if (splashScreen) {
         goTo(splashScreen);
       } else {
@@ -713,23 +738,43 @@ function renderMapPiece(id) {
   emoji.style.margin = "10px 0";
   emoji.textContent = piece.emoji;
 
+  // Для towers кнопка ведёт на claimReward, для остальных — на proceedAfterMapPiece
+  let nextScreen;
+  if (id === "towers") {
+    nextScreen = "chapter2ClaimReward";
+  } else {
+    nextScreen = "proceedAfterMapPiece"; // будем вызывать функцию напрямую
+  }
+
+  const actionBtn = btn(CONFIG.mapPieceButtonText, () => {
+    state.mapPieceCount = (state.mapPieceCount || 0) + 1;
+    saveState();
+    if (id === "towers") {
+      goTo("chapter2ClaimReward");
+    } else {
+      proceedAfterMapPiece(id);
+    }
+  }, "primary");
+
   app.appendChild(screenWrap([
     p(piece.text),
     emoji,
-    btn(CONFIG.mapPieceButtonText, () => {
-      state.mapPieceCount = (state.mapPieceCount || 0) + 1;
-      saveState();
-      proceedAfterMapPiece(id);
-    }, "primary"),
+    actionBtn,
   ]));
 }
 
 function proceedAfterMapPiece(id) {
-  if (id === "towers") {
-    // после башен мы уже не используем этот переход, оставим на всякий случай
-    goTo("chapter2Praise");
-    return;
+  // Для компаньонов
+  const allRecruited = Object.keys(state.recruited).length >= CONFIG.hub.directions.length;
+  if (allRecruited && !state.seenAct2Splash) {
+    state.seenAct2Splash = true;
+    saveState();
+    goTo("actSplash2");
+  } else {
+    goTo("hub");
   }
+  // Для rest обрабатывается в renderMapPiece? Но rest вызывается через mapPiece:rest, который идёт в renderMapPiece и там кнопка ведёт на proceedAfterMapPiece, но для rest у нас отдельная логика.
+  // Поэтому в proceedAfterMapPiece добавим проверку на id === "rest"
   if (id === "rest") {
     if (!state.seenAct3Splash) {
       state.seenAct3Splash = true;
@@ -740,15 +785,7 @@ function proceedAfterMapPiece(id) {
     }
     return;
   }
-  // иначе — компаньон
-  const allRecruited = Object.keys(state.recruited).length >= CONFIG.hub.directions.length;
-  if (allRecruited && !state.seenAct2Splash) {
-    state.seenAct2Splash = true;
-    saveState();
-    goTo("actSplash2");
-  } else {
-    goTo("hub");
-  }
+  // Для остальных (компаньоны) уже обработано выше.
 }
 
 // ---------- Газета ----------
@@ -877,7 +914,7 @@ function renderChapter2Praise() {
   app.appendChild(banner(c.eyebrow, c.title));
   app.appendChild(screenWrap([
     p(c.text),
-    btn(c.buttonText, () => goTo("chapter2ClaimReward"), "primary"),
+    btn(c.buttonText, () => goTo("mapPiece:towers"), "primary")  // теперь карта до награды
   ]));
 }
 
@@ -891,10 +928,7 @@ function renderChapter2ClaimReward() {
   input.placeholder = c.passwordPlaceholder;
   input.autocomplete = "off";
 
-  const onSuccess = () => {
-    // успех – переходим к показу суммы
-    goTo("chapter2Reward");
-  };
+  const onSuccess = () => goTo("chapter2Reward");
   const onFail = (msg) => {
     statusSlot.innerHTML = "";
     statusSlot.appendChild(statusMsg(msg, "error"));
@@ -937,11 +971,7 @@ function renderChapter2Reward() {
   app.appendChild(screenWrap([
     amountEl,
     p(c.text),
-    btn(c.walletButtonText, () => {
-      // После награды переходим к карте, но сначала проверяем, не нужно ли показать сплэш?
-      // Здесь мы уже поставили письмо, поэтому на хабе появится квест на отдых
-      goTo("mapPiece:towers");
-    }, "primary"),
+    btn(c.walletButtonText, () => goTo("goldHistory"), "primary"), // теперь ведёт в историю золота
   ]));
 }
 
@@ -1017,7 +1047,6 @@ function renderRestChoice() {
   c.options.forEach((opt) => {
     const b = document.createElement("button");
     b.className = "direction-btn";
-    // Показываем название и описание (flavor) мелким шрифтом, адрес убираем
     b.innerHTML = `<span>${opt.name}</span><br><span style="font-size:0.8em; opacity:0.7;">${opt.flavor}</span>`;
     b.addEventListener("click", () => {
       state.restChoice = opt.id;
@@ -1089,11 +1118,9 @@ function renderRestSubmitted() {
     statusMsg(c.submittedText, "ok"),
     btn(c.finishButtonText, () => {
       state.restDone = true;
-      // После отдыха ставим письмо 2 (legendStage = 2)
       state.legendStage = 2;
       state.legendUnread = true;
       saveState();
-      // Возвращаемся на хаб, где появится значок у Легенды
       goTo("hub");
     }, "primary"),
   ]));
@@ -1154,7 +1181,6 @@ function renderGearMap() {
   const c = CONFIG.chapter5;
   app.appendChild(banner(c.eyebrow, "Карта собрана"));
 
-  // Показываем полную карту
   const mapImg = document.createElement("img");
   mapImg.src = c.puzzle.completeMapImage;
   mapImg.alt = "Собранная карта";
@@ -1223,7 +1249,6 @@ function renderGearPhotoSubmitted() {
   app.appendChild(screenWrap([
     statusMsg(c.gearPhotoSubmitted || "Фото сохранено!", "ok"),
     btn(c.gearPhotoContinue || "Продолжить", () => {
-      // После снаряжения ставим письмо 3 (legendStage = 3)
       state.legendStage = 3;
       state.legendUnread = true;
       saveState();
@@ -1278,12 +1303,12 @@ function renderFinalPhoto() {
 
 function renderFinalBattleDone() {
   const fb = CONFIG.finalBattle;
-  app.appendChild(banner(fb.eyebrow, "Победа!"));
   setHealth(27, "Имениннику — полное здоровье!");
+
+  app.appendChild(banner(fb.eyebrow, "Победа!"));
   app.appendChild(screenWrap([
-    statusMsg(fb.battleDoneText || "Битва окончена! Ты спас мир!", "ok"),
+    statusMsg(fb.battleDoneText || "Битва окончена! Ты спас мир! Твоё здоровье восстановлено до 27 — в честь дня рождения!", "ok"),
     btn("Сохранить газеты на память", () => {
-      // Скачиваем все газеты
       const allIssues = [...CONFIG.newspaper.staticIssues, ...state.newspaperIssues];
       allIssues.forEach((issue, index) => {
         const link = document.createElement("a");
@@ -1334,15 +1359,12 @@ function renderActSplashGeneric(actConfig, nextScreen) {
 function renderActSplash2() {
   renderActSplashGeneric(CONFIG.acts.act2, "hub");
 }
-
 function renderActSplash3() {
   renderActSplashGeneric(CONFIG.acts.act3, "hub");
 }
-
 function renderActSplash4() {
   renderActSplashGeneric(CONFIG.acts.act4, "hub");
 }
-
 function renderActSplash5() {
   renderActSplashGeneric(CONFIG.acts.act5, "hub");
 }
