@@ -1,20 +1,21 @@
 const CACHE_NAME = "bg3quest-cache-v10";
 const ASSETS = [
-  // ... старые пути ...
   "./images/newspaper-template-towers.jpg",
-  "./images/newspaper-template-market.jpg",
-  "./images/newspaper-template-fine.jpg",
-  "./images/newspaper-template-tavern.jpg",
-  "./images/newspaper-template-gear.jpg",
-  "./images/newspaper-template-final.jpg",
-  "./images/piece1.png",
-  "./images/piece2.png",
-  "./images/piece3.png",
-  "./images/piece4.png",
-  "./images/maxill.png",
-  "./images/maxill-joined.png",
-  "./images/legend.png",
-  "./images/legend-joined.png",
+"./images/newspaper-template-market.jpg",
+"./images/newspaper-template-fine.jpg",
+"./images/newspaper-template-tavern.jpg",
+"./images/newspaper-template-gear.jpg",
+"./images/newspaper-template-final.jpg",
+"./images/piece1.png",
+"./images/piece2.png",
+"./images/piece3.png",
+"./images/piece4.png",
+"./images/map-complete.jpg",
+"./images/final-victory.jpg",
+"./images/maxill.png",
+"./images/maxill-joined.png",
+"./images/legend.png",
+"./images/legend-joined.png",
 ];
 
 self.addEventListener("install", (event) => {
