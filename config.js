@@ -395,11 +395,11 @@ const CONFIG = {
   legendMessages: {
     // stage 1 больше не используется
     2: {
-      text: "Отдохнули? Теперь пора собираться в бой. Собери карту воедино и готовь снаряжение. Жду тебя на месте сбора.",
+      text: "Отдохнули? Теперь пора собираться в бой. Собери карту воедино и готовь снаряжение. Лавочники долго ждать не будут.",
       buttonText: "Начинаем",
     },
     3: {
-      text: "Всё готово. Жду тебя у подземья Звёздного в 16:00. Адрес: <a href='https://yandex.ru/maps/-/CTd8eCLa' target='_blank' style='color: var(--gold-bright); text-decoration: underline;'>ул Звёздная 1</a>",
+      text: "Всё готово. Бою быть у подземья Звёздного в 16:00. Адрес: <a href='https://yandex.ru/maps/-/CTd8eCLa' target='_blank' style='color: var(--gold-bright); text-decoration: underline;'>ул Звёздная 1</a>",
       buttonText: "Понял",
     },
   },
@@ -428,7 +428,7 @@ const CONFIG = {
     mapLink: "https://yandex.ru/maps/-/CTdvZAi1",
     mapButtonText: "Я на месте",
     budget: {
-      text: "Бюджет на закуп перед боем: 6000 ₽<br><span style='font-size:0.8em; opacity:0.8;'>Жители Города готовы поспособствовать ещё до 2000 ₽ за твои подвиги.</span>",
+      text: "Бюджет на закуп: 6000 ₽<br><span style='font-size:0.8em; opacity:0.8;'>Жители Города готовы поспособствовать ещё до 2000 ₽ за твои подвиги.</span>",
     },
     photo: {
       title: "Снаряжение засчитано",
