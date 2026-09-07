@@ -52,7 +52,8 @@ function saveState() {
 // ---------- Блокировка выхода из диалога ----------
 function goTo(screen) {
   const current = state.screen;
-  if (current && current.startsWith("companionDialogue:") && screen !== current) {
+  // Если мы в диалоге, блокируем только переход на другой диалог (не даём переключиться между разными диалогами)
+  if (current && current.startsWith("companionDialogue:") && screen.startsWith("companionDialogue:") && screen !== current) {
     return;
   }
   state.screen = screen;
@@ -1019,9 +1020,8 @@ function renderRestRoute() {
 
 function renderRestPhoto() {
   const c = CONFIG.chapter4;
-  // Берём выбранную опцию, чтобы получить её newIssue
   const opt = c.options.find((o) => o.id === state.restChoice) || c.options[0];
-  const issueConfig = opt.newIssue || c.newIssue; // резерв
+  const issueConfig = opt.newIssue || c.newIssue;
 
   app.appendChild(banner(c.eyebrow, c.photo.title));
 
