@@ -23,7 +23,7 @@ function loadState() {
     chapter2RewardClaimed: false,
     restChoice: null,
     restDone: false,
-    legendStage: 0,    // 0 - нет писем, 2 - письмо после отдыха, 3 - письмо после сборов
+    legendStage: 0,
     legendUnread: false,
     gearDone: false,
     gearBudgetExtra: 0,
@@ -1052,8 +1052,11 @@ function renderRestChoice() {
   c.options.forEach((opt) => {
     const b = document.createElement("button");
     b.className = "direction-btn";
-    // Название и описание
-    b.innerHTML = `<span style="font-size:1em;">${opt.name}</span><br><span style="font-size:0.75em; opacity:0.8;">${opt.flavor}</span>`;
+    // Исправлено: теперь внутри кнопки название и описание идут друг под другом
+    b.innerHTML = `<div style="display:block; text-align:left; width:100%;">
+      <span style="font-size:1em;">${opt.name}</span><br>
+      <span style="font-size:0.75em; opacity:0.8;">${opt.flavor}</span>
+    </div>`;
     b.addEventListener("click", () => {
       state.restChoice = opt.id;
       saveState();
