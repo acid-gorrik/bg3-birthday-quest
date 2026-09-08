@@ -60,7 +60,7 @@ function goTo(screen) {
   // Скрыть/показать рамку
   const frame = document.querySelector('.page-frame');
   if (frame) {
-    if (screen === 'titleSplash' || screen === 'finalVictory') {
+    if (screen === 'titleSplash' || screen === 'finalVictory' || screen === 'finalTavern') {
       frame.style.display = 'none';
     } else {
       frame.style.display = 'block';
@@ -155,6 +155,7 @@ function render() {
     finalBattleIntro: renderFinalBattleIntro,
     finalPhoto: renderFinalPhoto,
     finalBattleDone: renderFinalBattleDone,
+    finalTavern: renderFinalTavern,
     finalVictory: renderFinalVictory,
     actSplash2: renderActSplash2,
     actSplash4: renderActSplash4,
@@ -174,7 +175,7 @@ function render() {
   // Скрыть/показать рамку
   const frame = document.querySelector('.page-frame');
   if (frame) {
-    if (state.screen === 'titleSplash' || state.screen === 'finalVictory') {
+    if (state.screen === 'titleSplash' || state.screen === 'finalVictory' || state.screen === 'finalTavern') {
       frame.style.display = 'none';
     } else {
       frame.style.display = 'block';
@@ -446,7 +447,6 @@ function renderHub() {
 
   const children = [title, statRow, healthBar];
 
-  // Квест на башни
   if (allRecruited) {
     if (state.chapter2Done) {
       children.push(questDoneRow(c.firstMission.title));
@@ -457,7 +457,6 @@ function renderHub() {
     }
   }
 
-  // Привал появляется сразу после награды, без письма
   if (state.chapter2RewardClaimed) {
     if (state.restDone) {
       children.push(questDoneRow(CONFIG.chapter4.hubCardTitle));
@@ -469,7 +468,6 @@ function renderHub() {
     }
   }
 
-  // Снаряжение появляется только после прочтения письма 2 (stage 2)
   if (state.restDone && state.legendStage >= 2 && !state.legendUnread) {
     if (state.gearDone) {
       children.push(questDoneRow(CONFIG.chapter5.hubCardTitle));
@@ -481,7 +479,6 @@ function renderHub() {
     }
   }
 
-  // Финальная битва после письма 3
   if (state.gearDone && state.legendStage >= 3 && !state.legendUnread) {
     if (state.finalBattleDone) {
       children.push(questDoneRow(CONFIG.finalBattle.hubCardTitle));
@@ -493,7 +490,6 @@ function renderHub() {
     }
   }
 
-  // Направления для союзников
   if (!allRecruited) {
     const sectionLabel = document.createElement("p");
     sectionLabel.className = "field-label";
@@ -716,7 +712,7 @@ function renderLogScreen(eyebrow, title, log, unit) {
   app.appendChild(screenWrap([list, btn("Назад", () => goTo("hub"), "ghost")]));
 }
 
-// ---------- Письмо от Легенды (только этапы 2 и 3) ----------
+// ---------- Письмо от Легенды ----------
 function renderLegendLetter() {
   const stage = state.legendStage;
   const msg = CONFIG.legendMessages[stage];
@@ -779,11 +775,9 @@ function renderMapPiece(id) {
 
 function proceedAfterMapPiece(id) {
   if (id === "rest") {
-    // после отдыха сразу хаб, без письма и сплэша
     goTo("hub");
     return;
   }
-  // для компаньонов
   const allRecruited = Object.keys(state.recruited).length >= CONFIG.hub.directions.length;
   if (allRecruited && !state.seenAct2Splash) {
     state.seenAct2Splash = true;
@@ -962,7 +956,6 @@ function renderChapter2Reward() {
   if (!state.chapter2RewardClaimed) {
     addGold(c.amount, c.goldLogLabel);
     state.chapter2RewardClaimed = true;
-    // больше не ставим legendStage = 1, привал появляется сразу
     saveState();
   }
 
@@ -1052,7 +1045,6 @@ function renderRestChoice() {
   c.options.forEach((opt) => {
     const b = document.createElement("button");
     b.className = "direction-btn";
-    // Исправлено: теперь внутри кнопки название и описание идут друг под другом
     b.innerHTML = `<div style="display:block; text-align:left; width:100%;">
       <span style="font-size:1em;">${opt.name}</span><br>
       <span style="font-size:0.75em; opacity:0.8;">${opt.flavor}</span>
@@ -1127,7 +1119,6 @@ function renderRestSubmitted() {
     statusMsg(c.submittedText, "ok"),
     btn(c.finishButtonText, () => {
       state.restDone = true;
-      // После отдыха ставим письмо 2 (этап 2)
       state.legendStage = 2;
       state.legendUnread = true;
       saveState();
@@ -1259,7 +1250,6 @@ function renderGearPhotoSubmitted() {
   app.appendChild(screenWrap([
     statusMsg(c.gearPhotoSubmitted || "Фото сохранено!", "ok"),
     btn(c.gearPhotoContinue || "Продолжить", () => {
-      // После сборов ставим письмо 3 (этап 3)
       state.legendStage = 3;
       state.legendUnread = true;
       saveState();
@@ -1328,8 +1318,29 @@ function renderFinalBattleDone() {
         link.click();
       });
     }, "primary"),
-    btn(fb.finishButtonText, () => goTo("finalVictory"), "primary"),
+    btn(fb.finishButtonText, () => goTo("finalTavern"), "primary"),
   ]));
+}
+
+function renderFinalTavern() {
+  const fb = CONFIG.finalBattle;
+  app.appendChild(banner("Отдых", "Поправить здоровье"));
+
+  const wrap = document.createElement("div");
+  wrap.className = "screen";
+  wrap.style.display = "flex";
+  wrap.style.flexDirection = "column";
+  wrap.style.gap = "18px";
+
+  const text = document.createElement("p");
+  text.className = "lore-text";
+  text.textContent = fb.tavernText || "Отправиться поправлять здоровье в ближайшей таверне?";
+
+  const tavernBtn = btn(fb.tavernButton || "В бар!", () => goTo("finalVictory"), "primary");
+
+  wrap.appendChild(text);
+  wrap.appendChild(tavernBtn);
+  app.appendChild(wrap);
 }
 
 function renderFinalVictory() {

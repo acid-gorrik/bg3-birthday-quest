@@ -467,8 +467,10 @@ const CONFIG = {
       templateImage: "images/newspaper-template-final.jpg",
       photoBox: { x: 31, y: 188, width: 236, height: 135 },
     },
-    battleDoneText: "Битва окончена! Ты спас мир! Твоё здоровье восстановлено до 27 — в честь дня рождения!",
+    battleDoneText: "Битва окончена! Ты спас мир!",
     finishButtonText: "Продолжить",
+    tavernText: "Отправиться поправлять здоровье?",
+    tavernButton: "В бар!",
     finalImage: "images/final-victory.jpg",
   },
 
